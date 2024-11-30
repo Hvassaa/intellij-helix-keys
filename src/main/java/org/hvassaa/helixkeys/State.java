@@ -44,41 +44,67 @@ public class State {
     mode = Mode.INSERT;
   }
 
-  public void doM(Editor e) {
-    // This currently does 'mi)' locally to the current line
+  private static int findNextOffsetOf(Editor e, char c) {
     Caret caret = e.getCaretModel().getPrimaryCaret();
     Document docuemnt = e.getDocument();
     int caretOffset = caret.getOffset();
     int lineNumber = docuemnt.getLineNumber(caretOffset);
-    int lineEndOffset = docuemnt.getLineEndOffset(lineNumber);
-    int lineStartOffset = docuemnt.getLineStartOffset(lineNumber);
 
-    TextRange toEnd = TextRange.create(caretOffset, lineEndOffset);
-    TextRange toStart = TextRange.create(lineStartOffset, caretOffset);
-    String toEndString = docuemnt.getText(toEnd);
-    String toStartString = docuemnt.getText(toStart);
-    int startMarkerIdx = 0;
-    int endMarkerIdx = 0;
-
-    System.out.println(toEndString);
-    System.out.println(toStartString);
-
-    for (int i = 0; i < toEndString.length(); i++) {
-      char c = toEndString.charAt(i);
-      if (c == ')') {
-        endMarkerIdx = i;
-        break;
+    for (int i = lineNumber; i < docuemnt.getLineCount(); i++) {
+      int start;
+      if (i == lineNumber) {
+        start = caretOffset;
+      } else {
+        start = docuemnt.getLineStartOffset(i);
       }
-    }
-    for (int i = 0; i < toStartString.length(); i++) {
-      char c = toStartString.charAt(toStartString.length() - 1 - i);
-      if (c == '(') {
-        startMarkerIdx = i;
-        break;
+
+      int end = docuemnt.getLineEndOffset(i);
+      TextRange range = TextRange.create(start, end);
+      String str = docuemnt.getText(range);
+      int idx = str.indexOf(c);
+      if (idx != -1) {
+        return start + idx;
       }
     }
 
-    e.getSelectionModel().setSelection(caretOffset - startMarkerIdx, caretOffset + endMarkerIdx);
+    return -1;
+  }
+
+  private static int findPreviousOffsetOf(Editor e, char c) {
+    Caret caret = e.getCaretModel().getPrimaryCaret();
+    Document docuemnt = e.getDocument();
+    int caretOffset = caret.getOffset();
+    int lineNumber = docuemnt.getLineNumber(caretOffset);
+
+    for (int i = lineNumber; i >= 0; i--) {
+      int start = docuemnt.getLineStartOffset(i);
+
+      int end;
+      if (i == lineNumber) {
+        end = caretOffset;
+      } else {
+        end = docuemnt.getLineEndOffset(i);
+      }
+      TextRange range = TextRange.create(start, end);
+      String str = docuemnt.getText(range);
+      int idx = str.lastIndexOf(c);
+      if (idx != -1) {
+        return start + idx;
+      }
+    }
+
+    return -1;
+  }
+
+  public void doM(Editor e) {
+    // This currently does 'mi)'
+    int startMarkerIdx = findPreviousOffsetOf(e, '(');
+    int endMarkerIdx = findNextOffsetOf(e, ')');
+    if (startMarkerIdx == -1 || endMarkerIdx == -1) {
+      return;
+    }
+    e.getSelectionModel().setSelection(startMarkerIdx + 1, endMarkerIdx); // the caret should be after the start char
+    e.getCaretModel().getPrimaryCaret().moveToOffset(endMarkerIdx);
   }
 
   public void doK(Editor e) {
